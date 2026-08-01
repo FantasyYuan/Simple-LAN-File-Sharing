@@ -1,0 +1,208 @@
+:root {
+  --bg: #f4f6fb;
+  --card: #ffffff;
+  --ink: #1f2937;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --brand: #2563eb;
+  --brand-d: #1d4ed8;
+  --ok: #16a34a;
+  --err: #dc2626;
+  --chip: #eef2ff;
+  --radius: 14px;
+  --shadow: 0 4px 18px rgba(17, 24, 39, .06);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* ---------- 顶栏 ---------- */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  color: #fff;
+  box-shadow: var(--shadow);
+}
+.brand { font-weight: 700; font-size: 17px; }
+.netinfo { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip {
+  background: rgba(255, 255, 255, .18);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 13px;
+}
+.chip b { font-weight: 700; }
+
+/* ---------- 布局 ---------- */
+main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+.card h2 { margin: 0 0 10px; font-size: 16px; }
+.card h2 .sub { color: var(--muted); font-weight: 400; font-size: 13px; }
+.hint { color: var(--muted); font-size: 13px; margin: 0 0 10px; }
+.hint strong { color: var(--brand); }
+.empty { color: var(--muted); font-size: 14px; text-align: center; padding: 14px 0; margin: 0; }
+
+/* ---------- 上传区 ---------- */
+.dropzone {
+  border: 2px dashed #c7d2fe;
+  border-radius: var(--radius);
+  background: #f8faff;
+  padding: 26px 16px;
+  text-align: center;
+  transition: .15s;
+}
+.dropzone.over { border-color: var(--brand); background: #eef2ff; }
+.dz-text { margin: 0 0 12px; color: var(--muted); }
+.upload-hint { margin-top: 10px; font-size: 13px; color: var(--muted); min-height: 18px; }
+
+/* ---------- 发送栏 ---------- */
+.sendbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.sendbar label { color: var(--muted); font-size: 14px; }
+select {
+  flex: 1 1 160px;
+  min-width: 140px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+/* ---------- 文件列表 ---------- */
+.filelist { display: flex; flex-direction: column; gap: 8px; }
+.item {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fff;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.fname {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.meta { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.tag {
+  background: var(--chip);
+  color: var(--brand-d);
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.pick { width: 18px; height: 18px; flex: none; }
+
+/* ---------- 按钮 ---------- */
+.btn {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  border-radius: 10px;
+  padding: 9px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: .15s;
+}
+.btn:hover { border-color: #c7d2fe; }
+.btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+.btn.primary:hover { background: var(--brand-d); }
+.btn.tiny { padding: 5px 12px; font-size: 13px; }
+.btn:active { transform: translateY(1px); }
+
+/* ---------- 日志 ---------- */
+.logbox {
+  background: #0f172a;
+  color: #cbd5e1;
+  border-radius: 10px;
+  padding: 12px;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ---------- Toast ---------- */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%) translateY(20px);
+  background: #111827;
+  color: #fff;
+  padding: 11px 20px;
+  border-radius: 999px;
+  font-size: 14px;
+  opacity: 0;
+  pointer-events: none;
+  transition: .25s;
+  z-index: 50;
+  max-width: 90vw;
+  text-align: center;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.ok { background: #16a34a; }
+.toast.err { background: #dc2626; }
+
+/* ---------- 手机适配 ---------- */
+@media (max-width: 560px) {
+  .topbar { padding: 10px 12px; }
+  .brand { font-size: 15px; }
+  main { padding: 12px; gap: 12px; }
+  .card { padding: 14px; }
+  .sendbar { flex-direction: column; align-items: stretch; }
+  .sendbar label { margin-bottom: 2px; }
+  .sendbar .btn { width: 100%; }
+  .row { gap: 8px; }
+  .btn.tiny { padding: 6px 14px; }
+}

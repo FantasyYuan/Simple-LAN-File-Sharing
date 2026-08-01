@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>局域网文件共享 · Uploader</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">📡 局域网文件共享</div>
+    <div class="netinfo">
+      <span class="chip">你的 IP：<b id="myIp">…</b></span>
+      <span class="chip">服务器：<b id="serverIp">…</b></span>
+    </div>
+  </header>
+
+  <main>
+    <!-- ① 上传 -->
+    <section class="card">
+      <h2>① 上传文件</h2>
+      <p class="hint">连上同一 WiFi，打开服务器地址即可使用。点击或拖拽可<strong>批量</strong>选择文件。</p>
+      <div id="dropzone" class="dropzone">
+        <p class="dz-text">把文件拖到这里，或</p>
+        <button class="btn" id="pickBtn" type="button">选择文件</button>
+        <input type="file" id="fileInput" multiple hidden>
+      </div>
+      <div id="uploadHint" class="upload-hint"></div>
+    </section>
+
+    <!-- ② 我的文件 & 发送 -->
+    <section class="card">
+      <h2>② 我的文件 &amp; 发送</h2>
+      <div class="sendbar">
+        <label for="peerSelect">发送给：</label>
+        <select id="peerSelect">
+          <option value="">— 选择对方 IP —</option>
+        </select>
+        <button class="btn primary" id="sendBtn" type="button">发送选中</button>
+      </div>
+      <div id="myFiles" class="filelist"><p class="empty">还没有文件，先在 ① 上传</p></div>
+    </section>
+
+    <!-- ③ 收件箱 -->
+    <section class="card">
+      <h2>③ 收件箱</h2>
+      <p class="hint">别人发给你的文件会出现在这里，点「下载」保存到本机。</p>
+      <div id="inbox" class="filelist"><p class="empty">暂无接收的文件</p></div>
+    </section>
+
+    <!-- ④ 操作日志 -->
+    <section class="card">
+      <h2>④ 操作日志 <span class="sub">(.log)</span></h2>
+      <div id="logBox" class="logbox"></div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>
