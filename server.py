@@ -159,21 +159,53 @@ class State:
     def touch_peer(self, ip):
         if ip in ("127.0.0.1", "::1"):
             return
-        self.peers[ip] = datetime.datetime.now().isoformat()
+        now = datetime.datetime.now().isoformat()
+        entry = self.peers.get(ip)
+        if isinstance(entry, str):
+            self.peers[ip] = {"seen": now, "name": ""}
+        elif isinstance(entry, dict):
+            entry["seen"] = now
+        else:
+            self.peers[ip] = {"seen": now, "name": ""}
         self._save_peers()
 
     def peer_list(self, my_ip):
         now = datetime.datetime.now()
         out = []
-        for ip, seen in self.peers.items():
+        for ip, entry in self.peers.items():
             if ip == my_ip or ip in ("127.0.0.1", "::1"):
                 continue
+            name = ""
+            if isinstance(entry, dict):
+                seen_str = entry.get("seen", "")
+                name = entry.get("name", "")
+            else:
+                seen_str = entry  # 兼容旧纯时间戳格式
             try:
-                online = (now - datetime.datetime.fromisoformat(seen)).total_seconds() < ONLINE_WINDOW
+                online = (now - datetime.datetime.fromisoformat(seen_str)).total_seconds() < ONLINE_WINDOW
             except Exception:
                 online = False
-            out.append({"ip": ip, "online": online})
+            out.append({"ip": ip, "online": online, "name": name})
         return out
+
+    def set_name(self, ip, name):
+        """设置或清除某个 IP 的昵称 (最长20字符)。"""
+        name = (name or "").strip()[:20]
+        entry = self.peers.get(ip)
+        if isinstance(entry, dict):
+            entry["name"] = name
+        elif isinstance(entry, str):
+            self.peers[ip] = {"seen": entry, "name": name}
+        else:
+            self.peers[ip] = {"seen": datetime.datetime.now().isoformat(), "name": name}
+        self._save_peers()
+
+    def get_name(self, ip):
+        """获取某个 IP 的昵称，无则返回空字符串。"""
+        entry = self.peers.get(ip)
+        if isinstance(entry, dict):
+            return entry.get("name", "")
+        return ""
 
     # ---- 文件元信息视图 ----
     def my_files(self, ip):
@@ -183,7 +215,7 @@ class State:
                 out.append({
                     "id": f["id"], "name": f["name"], "size": f["size"],
                     "uploaded_at": f["uploaded_at"],
-                    "deliveries": [d["to"] for d in f.get("deliveries", [])],
+                    "deliveries": [{"to": d["to"], "name": self.get_name(d["to"])} for d in f.get("deliveries", [])],
                 })
         return out
 
@@ -192,9 +224,11 @@ class State:
         for f in self.files.values():
             for d in f.get("deliveries", []):
                 if d["to"] == ip:
+                    owner_ip = f["owner"]
                     out.append({
                         "id": f["id"], "name": f["name"], "size": f["size"],
-                        "owner": f["owner"], "at": d["at"], "downloaded": d.get("downloaded", False),
+                        "owner": owner_ip, "at": d["at"], "downloaded": d.get("downloaded", False),
+                        "owner_name": self.get_name(owner_ip),
                     })
         return out
 
@@ -270,6 +304,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json({
                     "ip": ip,
                     "server_ip": STATE.server_ip,
+                    "my_name": STATE.get_name(ip),
                     "peers": STATE.peer_list(ip),
                     "my_files": STATE.my_files(ip),
                     "inbox": STATE.inbox(ip),
@@ -308,6 +343,9 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path == "/api/delete":
                 self._delete(ip)
+                return
+            if path == "/api/set-name":
+                self._set_name(ip)
                 return
             self.send_error(404)
         except Exception as e:
@@ -403,6 +441,18 @@ class Handler(BaseHTTPRequestHandler):
             STATE._save_files()
         STATE.log(ip, "DELETE", "files=" + ",".join(removed))
         self._send_json({"ok": True, "removed": removed})
+
+    def _set_name(self, ip):
+        body = self._read_body()
+        try:
+            payload = json.loads(body.decode("utf-8"))
+            name = payload.get("name", "")
+        except Exception:
+            self._send_json({"ok": False, "error": "参数错误"}, 400)
+            return
+        STATE.set_name(ip, name)
+        STATE.log(ip, "SETNAME", "name=" + (name or "(cleared)"))
+        self._send_json({"ok": True, "name": name})
 
     def _download(self, fid, ip):
         with STATE.lock:

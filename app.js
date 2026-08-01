@@ -42,6 +42,7 @@
       SERVER_IP = s.server_ip;
       $("myIp").textContent = s.ip;
       $("serverIp").textContent = s.server_ip;
+      $("nameInput").value = s.my_name || "";
 
       const sel = $("peerSelect");
       const cur = sel.value;
@@ -49,7 +50,8 @@
       (s.peers || []).forEach((p) => {
         const o = document.createElement("option");
         o.value = p.ip;
-        o.textContent = p.ip + (p.online ? "（在线）" : "（离线）");
+        const label = (p.name ? p.name + " · " : "") + p.ip + (p.online ? "（在线）" : "（离线）");
+        o.textContent = label;
         sel.appendChild(o);
       });
       if (cur) sel.value = cur;
@@ -70,7 +72,7 @@
     }
     box.innerHTML = "";
     files.forEach((f) => {
-      const delivered = (f.deliveries || []).join("、");
+      const delivered = (f.deliveries || []).map(d => d.name || d.to).join("、");
       const div = document.createElement("div");
       div.className = "item";
       div.innerHTML =
@@ -98,11 +100,12 @@
     items.forEach((f) => {
       const div = document.createElement("div");
       div.className = "item";
+      const fromLabel = f.owner_name ? f.owner_name + " (" + f.owner + ")" : f.owner;
       div.innerHTML =
         '<div class="row">' +
         '<span class="fname" title="' + escapeHtml(f.name) + '">' + escapeHtml(f.name) + "</span>" +
         '<span class="meta">' + fmtSize(f.size) + "</span>" +
-        '<span class="tag">来自 ' + escapeHtml(f.owner) + "</span>" +
+        '<span class="tag">来自 ' + escapeHtml(fromLabel) + "</span>" +
         '<a class="btn tiny primary" href="/api/download/' + f.id + '" download>下载</a>' +
         "</div>";
       box.appendChild(div);
@@ -202,6 +205,31 @@
       toast("删除失败：" + e.message, false);
     }
   }
+
+  // ---------------- 昵称 ----------------
+  async function saveName() {
+    const name = $("nameInput").value.trim();
+    try {
+      const r = await fetch("/api/set-name", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name }),
+      });
+      const j = await r.json();
+      if (j.ok) {
+        toast(name ? "昵称已更新：" + name : "昵称已清除");
+        await loadLogs();
+      } else {
+        toast("保存失败：" + (j.error || ""), false);
+      }
+    } catch (e) {
+      toast("保存错误：" + e.message, false);
+    }
+  }
+  $("saveNameBtn").onclick = () => saveName();
+  $("nameInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); saveName(); }
+  });
 
   // ---------------- 日志 ----------------
   async function loadLogs() {

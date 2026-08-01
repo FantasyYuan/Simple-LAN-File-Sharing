@@ -51,6 +51,25 @@ html, body {
   font-size: 13px;
 }
 .chip b { font-weight: 700; }
+#nameInput {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255,255,255,.5);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  outline: none;
+  width: 80px;
+  padding: 2px 0;
+}
+#nameInput::placeholder { color: rgba(255,255,255,.45); font-weight: 400; }
+#nameChip .btn.tiny {
+  background: rgba(255,255,255,.2);
+  color: #fff;
+  border: none;
+  margin-left: 4px;
+  vertical-align: middle;
+}
 
 /* ---------- 布局 ---------- */
 main {
