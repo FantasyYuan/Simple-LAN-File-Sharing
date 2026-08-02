@@ -27,6 +27,22 @@
     );
   }
 
+  function guessDeviceName() {
+    var ua = navigator.userAgent || "";
+    if (/iPhone|iPad|iPod/.test(ua)) {
+      var m = ua.match(/OS (\d+)/);
+      return m ? "iPhone (iOS " + m[1] + ")" : "iPhone";
+    }
+    if (/Android/.test(ua)) {
+      var m = ua.match(/Android (\d+(\.\d+)?)/);
+      return m ? "Android " + m[1] : "Android 设备";
+    }
+    if (/Windows/.test(ua)) return "Windows PC";
+    if (/Mac OS/.test(ua)) return "Mac";
+    if (/Linux/.test(ua)) return "Linux";
+    return "";
+  }
+
   async function api(path, opts) {
     const r = await fetch(path, opts);
     if (!r.ok) throw new Error("HTTP " + r.status);
@@ -43,6 +59,19 @@
       $("myIp").textContent = s.ip;
       $("serverIp").textContent = s.server_ip;
       $("nameInput").value = s.my_name || "";
+
+      // 首次连接：自动检测设备名并保存
+      if (!s.my_name) {
+        var guessed = guessDeviceName();
+        if (guessed) {
+          $("nameInput").value = guessed;
+          fetch("/api/set-name", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: guessed }),
+          }).catch(function(){});
+        }
+      }
 
       const sel = $("peerSelect");
       const cur = sel.value;
@@ -142,37 +171,46 @@
     const fd = new FormData();
     files.forEach((f) => fd.append("file", f, f.name));
 
+    const uid = "up_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6);
+    const totalBytes = files.reduce((s, f) => s + f.size, 0);
+
+    // 创建独立进度条
+    const item = document.createElement("div");
+    item.className = "progress-item";
+    item.id = uid;
+    item.innerHTML =
+      '<div class="progress-head">' +
+        "<span>上传 " + files.length + " 个文件 (" + fmtSize(totalBytes) + ")</span>" +
+        '<span class="pct">0%</span>' +
+      "</div>" +
+      '<div class="progress-track"><div class="progress-fill" style="width:0%"></div></div>' +
+      '<div class="progress-speed"></div>';
+    $("progressArea").appendChild(item);
+
     return new Promise((resolve) => {
       const xhr = new XMLHttpRequest();
       const startTime = Date.now();
-      const totalBytes = files.reduce((s, f) => s + f.size, 0);
-
-      // 显示进度条
-      $("progressArea").style.display = "";
-      $("progressLabel").textContent = "上传 " + files.length + " 个文件 (" + fmtSize(totalBytes) + ")";
-      $("progressPercent").textContent = "0%";
-      $("progressFill").style.width = "0%";
-      $("progressSpeed").textContent = "";
-      $("uploadHint").textContent = "";
 
       xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) {
-          const pct = Math.round(e.loaded / e.total * 100);
-          $("progressPercent").textContent = pct + "%";
-          $("progressFill").style.width = pct + "%";
-          const elapsed = (Date.now() - startTime) / 1000;
-          if (elapsed > 0.5) {
-            const speed = e.loaded / elapsed;
-            const remain = e.total - e.loaded;
-            const eta = speed > 0 ? remain / speed : 0;
-            $("progressSpeed").textContent =
-              fmtSize(speed) + "/s" + (eta > 1 ? " · 剩余约 " + Math.ceil(eta) + " 秒" : "");
-          }
+        if (!e.lengthComputable) return;
+        const it = document.getElementById(uid);
+        if (!it) return;
+        const pct = Math.round(e.loaded / e.total * 100);
+        it.querySelector(".pct").textContent = pct + "%";
+        it.querySelector(".progress-fill").style.width = pct + "%";
+        const elapsed = (Date.now() - startTime) / 1000;
+        if (elapsed > 0.5) {
+          const speed = e.loaded / elapsed;
+          const remain = e.total - e.loaded;
+          const eta = speed > 0 ? remain / speed : 0;
+          it.querySelector(".progress-speed").textContent =
+            fmtSize(speed) + "/s" + (eta > 1 ? " · 剩余 " + Math.ceil(eta) + " 秒" : "");
         }
       };
 
       xhr.onload = async () => {
-        $("progressArea").style.display = "none";
+        const it = document.getElementById(uid);
+        if (it) it.remove();
         try {
           const j = JSON.parse(xhr.responseText);
           if (j.ok) {
@@ -182,19 +220,17 @@
             await loadLogs();
           } else {
             toast("上传失败：" + (j.error || ""), false);
-            $("uploadHint").textContent = "";
           }
         } catch (e) {
           toast("上传错误：" + e.message, false);
-          $("uploadHint").textContent = "";
         }
         resolve();
       };
 
       xhr.onerror = () => {
-        $("progressArea").style.display = "none";
+        const it = document.getElementById(uid);
+        if (it) it.remove();
         toast("上传错误：网络连接失败", false);
-        $("uploadHint").textContent = "";
         resolve();
       };
 

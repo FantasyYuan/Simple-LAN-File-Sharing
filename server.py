@@ -146,6 +146,10 @@ class State:
         path = os.path.join(LOG_DIR, f"uploader_{now.strftime('%Y-%m-%d')}.log")
         with open(path, "a", encoding="utf-8") as f:
             f.write(line)
+        # 终端实时输出
+        name = self.get_name(ip)
+        tag = f" ({name})" if name else ""
+        print(f"[{action}] {ip}{tag} {detail}")
 
     def logs(self, n=50):
         now = datetime.datetime.now()
@@ -160,6 +164,7 @@ class State:
         if ip in ("127.0.0.1", "::1"):
             return
         now = datetime.datetime.now().isoformat()
+        is_new = ip not in self.peers
         entry = self.peers.get(ip)
         if isinstance(entry, str):
             self.peers[ip] = {"seen": now, "name": ""}
@@ -168,6 +173,10 @@ class State:
         else:
             self.peers[ip] = {"seen": now, "name": ""}
         self._save_peers()
+        if is_new:
+            name = self.get_name(ip)
+            tag = f" ({name})" if name else ""
+            print(f"[CONNECT] {ip}{tag}")
 
     def peer_list(self, my_ip):
         now = datetime.datetime.now()
@@ -190,6 +199,7 @@ class State:
 
     def set_name(self, ip, name):
         """设置或清除某个 IP 的昵称 (最长20字符)。"""
+        old = self.get_name(ip)
         name = (name or "").strip()[:20]
         entry = self.peers.get(ip)
         if isinstance(entry, dict):
@@ -199,6 +209,8 @@ class State:
         else:
             self.peers[ip] = {"seen": datetime.datetime.now().isoformat(), "name": name}
         self._save_peers()
+        if old != name:
+            print(f"[NAME] {ip} → {name or '(未设置)'}")
 
     def get_name(self, ip):
         """获取某个 IP 的昵称，无则返回空字符串。"""
@@ -513,6 +525,7 @@ def main():
 
     httpd = ThreadingHTTPServer((args.host, args.port), Handler)
     lan = STATE.server_ip
+    start_time = datetime.datetime.now()
     print("=" * 56)
     print("  局域网文件共享服务器已启动")
     print("  本机局域网 IP :", lan)
@@ -527,6 +540,18 @@ def main():
     except KeyboardInterrupt:
         print("\n服务器已停止。")
         httpd.shutdown()
+    finally:
+        end_time = datetime.datetime.now()
+        runtime = end_time - start_time
+        stop_log = os.path.join(LOG_DIR, f"server_{start_time.strftime('%Y%m%d_%H%M%S')}.log")
+        with open(stop_log, "w", encoding="utf-8") as f:
+            f.write(f"启动时间: {start_time.isoformat()}\n")
+            f.write(f"停止时间: {end_time.isoformat()}\n")
+            f.write(f"运行时长: {runtime}\n")
+            f.write(f"本机 IP : {lan}\n")
+            f.write(f"监听地址: {args.host}:{args.port}\n")
+            f.write(f"连接过 IP: {list(STATE.peers.keys())}\n")
+        print(f"运行摘要已保存: {stop_log}")
 
 
 if __name__ == "__main__":
