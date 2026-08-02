@@ -58,10 +58,15 @@
       SERVER_IP = s.server_ip;
       $("myIp").textContent = s.ip;
       $("serverIp").textContent = s.server_ip;
-      $("nameInput").value = s.my_name || "";
 
-      // 首次连接：自动检测设备名并保存（仅触发一次）
-      if (!s.my_name && !localStorage.getItem("uploader_name_set")) {
+      // 用户正在编辑昵称时，跳过轮询更新，避免覆盖输入
+      var editing = (document.activeElement === $("nameInput"));
+      if (!editing) {
+        $("nameInput").value = s.my_name || "";
+      }
+
+      // 首次连接：自动检测设备名并保存（仅触发一次，且不在编辑时）
+      if (!editing && !s.my_name && !localStorage.getItem("uploader_name_set")) {
         var guessed = guessDeviceName();
         if (guessed) {
           $("nameInput").value = guessed;
