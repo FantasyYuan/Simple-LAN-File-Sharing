@@ -141,23 +141,66 @@
     if (!files.length) return;
     const fd = new FormData();
     files.forEach((f) => fd.append("file", f, f.name));
-    $("uploadHint").textContent = "上传中…";
-    try {
-      const r = await fetch("/api/upload", { method: "POST", body: fd });
-      const j = await r.json();
-      if (j.ok) {
-        toast("上传成功：" + j.files.length + " 个文件");
-        $("uploadHint").textContent = "已上传 " + j.files.length + " 个文件";
-        await loadState();
-        await loadLogs();
-      } else {
-        toast("上传失败：" + (j.error || ""), false);
-        $("uploadHint").textContent = "";
-      }
-    } catch (e) {
-      toast("上传错误：" + e.message, false);
+
+    return new Promise((resolve) => {
+      const xhr = new XMLHttpRequest();
+      const startTime = Date.now();
+      const totalBytes = files.reduce((s, f) => s + f.size, 0);
+
+      // 显示进度条
+      $("progressArea").style.display = "";
+      $("progressLabel").textContent = "上传 " + files.length + " 个文件 (" + fmtSize(totalBytes) + ")";
+      $("progressPercent").textContent = "0%";
+      $("progressFill").style.width = "0%";
+      $("progressSpeed").textContent = "";
       $("uploadHint").textContent = "";
-    }
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const pct = Math.round(e.loaded / e.total * 100);
+          $("progressPercent").textContent = pct + "%";
+          $("progressFill").style.width = pct + "%";
+          const elapsed = (Date.now() - startTime) / 1000;
+          if (elapsed > 0.5) {
+            const speed = e.loaded / elapsed;
+            const remain = e.total - e.loaded;
+            const eta = speed > 0 ? remain / speed : 0;
+            $("progressSpeed").textContent =
+              fmtSize(speed) + "/s" + (eta > 1 ? " · 剩余约 " + Math.ceil(eta) + " 秒" : "");
+          }
+        }
+      };
+
+      xhr.onload = async () => {
+        $("progressArea").style.display = "none";
+        try {
+          const j = JSON.parse(xhr.responseText);
+          if (j.ok) {
+            toast("上传成功：" + j.files.length + " 个文件");
+            $("uploadHint").textContent = "已上传 " + j.files.length + " 个文件";
+            await loadState();
+            await loadLogs();
+          } else {
+            toast("上传失败：" + (j.error || ""), false);
+            $("uploadHint").textContent = "";
+          }
+        } catch (e) {
+          toast("上传错误：" + e.message, false);
+          $("uploadHint").textContent = "";
+        }
+        resolve();
+      };
+
+      xhr.onerror = () => {
+        $("progressArea").style.display = "none";
+        toast("上传错误：网络连接失败", false);
+        $("uploadHint").textContent = "";
+        resolve();
+      };
+
+      xhr.open("POST", "/api/upload");
+      xhr.send(fd);
+    });
   }
 
   // ---------------- 发送 ----------------

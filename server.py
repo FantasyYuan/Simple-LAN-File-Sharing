@@ -244,6 +244,13 @@ class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
     # ---------------- 辅助 ----------------
+    def handle_one_request(self):
+        """覆写以静默客户端断连 (ConnectionResetError)，避免控制台刷屏。"""
+        try:
+            super().handle_one_request()
+        except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+            pass
+
     def _client_ip(self):
         # 反向代理不存在, 直接用 socket 对端地址
         return self.client_address[0]
