@@ -48,7 +48,7 @@ FILES_DB = os.path.join(BASE_DIR, "files.json")
 PEERS_DB = os.path.join(BASE_DIR, "peers.json")
 
 ONLINE_WINDOW = 10 * 60          # 多少秒内有访问记录算 "在线"
-MAX_UPLOAD = 200 * 1024 * 1024   # 单次上传上限 200MB
+MAX_UPLOAD = 50 * 1024 * 1024 * 1024   # 单次上传防御性上限 50GB（实际取决于服务器内存）
 STATIC = {
     "/style.css": ("style.css", "text/css; charset=utf-8"),
     "/app.js": ("app.js", "application/javascript; charset=utf-8"),
@@ -359,7 +359,7 @@ class Handler(BaseHTTPRequestHandler):
     def _upload(self, ip):
         body = self._read_body()
         if body is None:
-            self._send_json({"ok": False, "error": "文件过大 (上限 200MB)"}, 413)
+            self._send_json({"ok": False, "error": "文件过大，超出服务器限制"}, 413)
             return
         ctype = self.headers.get("Content-Type", "")
         _, files = parse_multipart(body, ctype)

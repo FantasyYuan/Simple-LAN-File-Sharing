@@ -24,7 +24,7 @@
 ### ✨ Features
 
 - Shows your own LAN IP and all online peer IPs
-- Batch upload — drag & drop or select multiple files (up to 200 MB per batch)
+- Batch upload — drag & drop or select multiple files (no file size limit, constrained only by server memory)
 - Send to a specific peer by IP
 - Inbox — receive files and download with one click
 - Access control — only the sender and the intended recipient can download (403 otherwise)
@@ -111,7 +111,7 @@ MIT
 ### ✨ 功能
 
 - 显示本机局域网 IP 及所有在线同伴 IP
-- 批量上传，支持拖拽，单批上限 200MB
+- 批量上传，支持拖拽，无文件大小限制（实际取决于服务器内存）
 - 指定目标 IP 发送文件
 - 收件箱，接收并一键下载他人发来的文件
 - 权限控制，仅发送者与指定接收者可下载（否则 403）
