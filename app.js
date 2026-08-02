@@ -60,11 +60,12 @@
       $("serverIp").textContent = s.server_ip;
       $("nameInput").value = s.my_name || "";
 
-      // 首次连接：自动检测设备名并保存
-      if (!s.my_name) {
+      // 首次连接：自动检测设备名并保存（仅触发一次）
+      if (!s.my_name && !localStorage.getItem("uploader_name_set")) {
         var guessed = guessDeviceName();
         if (guessed) {
           $("nameInput").value = guessed;
+          localStorage.setItem("uploader_name_set", "1");
           fetch("/api/set-name", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -296,6 +297,7 @@
       });
       const j = await r.json();
       if (j.ok) {
+        localStorage.setItem("uploader_name_set", "1");
         toast(name ? "昵称已更新：" + name : "昵称已清除");
         await loadLogs();
       } else {
