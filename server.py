@@ -24,6 +24,7 @@
 """
 
 import argparse
+import atexit
 import datetime
 import json
 import mimetypes
@@ -529,6 +530,25 @@ def main():
     httpd = ThreadingHTTPServer((args.host, args.port), Handler)
     lan = STATE.server_ip
     start_time = datetime.datetime.now()
+
+    def _on_exit():
+        """无论 Ctrl+C / 点 X 关闭窗口 / 正常退出, 都会保存运行摘要。"""
+        end_time = datetime.datetime.now()
+        runtime = end_time - start_time
+        stop_log = os.path.join(LOG_DIR, f"server_{start_time.strftime('%Y%m%d_%H%M%S')}.log")
+        try:
+            with open(stop_log, "w", encoding="utf-8") as f:
+                f.write(f"启动时间: {start_time.isoformat()}\n")
+                f.write(f"停止时间: {end_time.isoformat()}\n")
+                f.write(f"运行时长: {runtime}\n")
+                f.write(f"本机 IP : {lan}\n")
+                f.write(f"监听地址: {args.host}:{args.port}\n")
+                f.write(f"连接过 IP: {list(STATE.peers.keys())}\n")
+            print(f"运行摘要已保存: {stop_log}")
+        except Exception:
+            pass
+
+    atexit.register(_on_exit)
     print("=" * 56)
     print("  局域网文件共享服务器已启动")
     print("  本机局域网 IP :", lan)
@@ -543,18 +563,6 @@ def main():
     except KeyboardInterrupt:
         print("\n服务器已停止。")
         httpd.shutdown()
-    finally:
-        end_time = datetime.datetime.now()
-        runtime = end_time - start_time
-        stop_log = os.path.join(LOG_DIR, f"server_{start_time.strftime('%Y%m%d_%H%M%S')}.log")
-        with open(stop_log, "w", encoding="utf-8") as f:
-            f.write(f"启动时间: {start_time.isoformat()}\n")
-            f.write(f"停止时间: {end_time.isoformat()}\n")
-            f.write(f"运行时长: {runtime}\n")
-            f.write(f"本机 IP : {lan}\n")
-            f.write(f"监听地址: {args.host}:{args.port}\n")
-            f.write(f"连接过 IP: {list(STATE.peers.keys())}\n")
-        print(f"运行摘要已保存: {stop_log}")
 
 
 if __name__ == "__main__":
