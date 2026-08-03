@@ -143,7 +143,7 @@
       div.className = "item";
       const fromLabel = f.owner_name ? f.owner_name + " (" + f.owner + ")" : f.owner;
       var dlBtn = f.downloaded
-        ? '<span class="btn tiny done">已下载</span>'
+        ? '<a class="btn tiny done" href="/api/download/' + f.id + '" download>已下载</a>'
         : '<a class="btn tiny primary" href="/api/download/' + f.id + '" download>下载</a>';
       div.innerHTML =
         '<div class="row">' +

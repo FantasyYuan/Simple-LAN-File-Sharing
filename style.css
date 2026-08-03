@@ -212,9 +212,7 @@ select {
 .btn.tiny { padding: 5px 12px; font-size: 13px; }
 .btn.tiny.done {
   background: #e5e7eb;
-  color: #9ca3af;
-  cursor: default;
-  pointer-events: none;
+  color: #6b7280;
   display: inline-block;
   text-decoration: none;
   border-radius: 8px;
