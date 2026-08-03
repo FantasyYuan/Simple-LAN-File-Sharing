@@ -231,8 +231,44 @@ class State:
                 out.append({
                     "id": f["id"], "name": f["name"], "size": f["size"],
                     "uploaded_at": f["uploaded_at"],
+                    "mode": f.get("mode", "private"),
+                    "expires_at": f.get("expires_at"),
                     "deliveries": [{"to": d["to"], "name": self.get_name(d["to"])} for d in f.get("deliveries", [])],
                 })
+        return out
+
+    def cleanup_expired(self):
+        """删除已过期的文件（物理文件 + 元信息）。"""
+        now = datetime.datetime.now()
+        to_delete = []
+        for fid, f in list(self.files.items()):
+            exp = f.get("expires_at")
+            if exp and datetime.datetime.fromisoformat(exp) < now:
+                to_delete.append(fid)
+        if not to_delete:
+            return
+        for fid in to_delete:
+            try:
+                if os.path.isfile(self.files[fid]["stored"]):
+                    os.remove(self.files[fid]["stored"])
+            except Exception:
+                pass
+            del self.files[fid]
+        self._save_files()
+
+    def public_files(self):
+        """返回所有公共寄存文件（自动过滤已过期）。"""
+        self.cleanup_expired()
+        out = []
+        for f in self.files.values():
+            if f.get("mode") != "public":
+                continue
+            out.append({
+                "id": f["id"], "name": f["name"], "size": f["size"],
+                "owner": f["owner"], "owner_name": self.get_name(f["owner"]),
+                "uploaded_at": f["uploaded_at"],
+                "expires_at": f.get("expires_at"),
+            })
         return out
 
     def inbox(self, ip):
@@ -331,6 +367,7 @@ class Handler(BaseHTTPRequestHandler):
                     "peers": STATE.peer_list(ip),
                     "my_files": STATE.my_files(ip),
                     "inbox": STATE.inbox(ip),
+                    "public_files": STATE.public_files(),
                 })
                 return
             if path == "/api/logs":
@@ -385,22 +422,36 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"ok": False, "error": "文件过大，超出服务器限制"}, 413)
             return
         ctype = self.headers.get("Content-Type", "")
-        _, files = parse_multipart(body, ctype)
+        fields, files = parse_multipart(body, ctype)
         if not files:
             self._send_json({"ok": False, "error": "未收到文件"}, 400)
             return
+        # 读取上传选项
+        mode = fields.get("mode", "private")
+        if mode not in ("private", "public"):
+            mode = "private"
+        expire_minutes = int(fields.get("expire_minutes", "0") or "0")
+        expire_after_download = fields.get("expire_after_download", "") == "1"
         saved = []
         now = datetime.datetime.now()
+        STATE.cleanup_expired()  # 顺便清理已过期文件
         with STATE.lock:
             for _, filename, data in files:
                 sid = now.strftime("%Y%m%d%H%M%S") + "_" + os.urandom(4).hex()
                 stored = os.path.join(UPLOAD_DIR, sid + "_" + safe_name(filename))
                 with open(stored, "wb") as f:
                     f.write(data)
+                expires_at = None
+                if mode == "public" and expire_minutes > 0:
+                    expires_at = (now + datetime.timedelta(minutes=expire_minutes)).isoformat()
                 STATE.files[sid] = {
                     "id": sid, "stored": stored, "name": filename,
                     "owner": ip, "size": len(data),
-                    "uploaded_at": now.isoformat(), "deliveries": [],
+                    "uploaded_at": now.isoformat(),
+                    "mode": mode,
+                    "expires_at": expires_at,
+                    "expire_after_download": (expire_after_download and mode == "private"),
+                    "deliveries": [],
                 }
                 saved.append(filename)
             STATE._save_files()
@@ -516,6 +567,17 @@ class Handler(BaseHTTPRequestHandler):
                     break
                 self.wfile.write(chunk)
         STATE.log(ip, "DOWNLOAD", "file=" + name + (" (owner)" if is_owner else " (from " + f["owner"] + ")"))
+
+        # 如果开启了"对方下载后自动删除"，接收者下载完就清理
+        if f.get("expire_after_download") and hit:
+            try:
+                if os.path.isfile(stored):
+                    os.remove(stored)
+            except Exception:
+                pass
+            STATE.files.pop(fid, None)
+            STATE._save_files()
+            STATE.log(ip, "AUTODEL", "file=" + name + " (downloaded by recipient)")
 
 
 # --------------------------------------------------------------------------- #

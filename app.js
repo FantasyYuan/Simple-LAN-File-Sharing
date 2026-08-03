@@ -93,6 +93,7 @@
 
       renderMyFiles(s.my_files || []);
       renderInbox(s.inbox || []);
+      renderPublicFiles(s.public_files || []);
     } catch (e) {
       // 轮询失败不频繁打扰用户
       console.warn("loadState failed:", e.message);
@@ -110,6 +111,7 @@
     box.innerHTML = "";
     files.forEach((f) => {
       const delivered = (f.deliveries || []).map(d => d.name || d.to).join("、");
+      const pubTag = f.mode === "public" ? '<span class="tag pub">公共</span>' : "";
       const div = document.createElement("div");
       div.className = "item";
       div.innerHTML =
@@ -117,6 +119,7 @@
         '<input type="checkbox" class="pick" value="' + f.id + '">' +
         '<span class="fname" title="' + escapeHtml(f.name) + '">' + escapeHtml(f.name) + "</span>" +
         '<span class="meta">' + fmtSize(f.size) + "</span>" +
+        pubTag +
         (delivered ? '<span class="tag">已发→' + escapeHtml(delivered) + "</span>" : "") +
         '<button class="btn tiny del" data-id="' + f.id + '" type="button">删除</button>' +
         "</label>";
@@ -156,6 +159,29 @@
     });
   }
 
+  function renderPublicFiles(files) {
+    var box = $("publicFiles");
+    if (!files.length) {
+      box.innerHTML = '<p class="empty">暂无公共文件</p>';
+      return;
+    }
+    box.innerHTML = "";
+    files.forEach(function(f) {
+      var div = document.createElement("div");
+      div.className = "item";
+      var ownerLabel = f.owner_name ? f.owner_name + " (" + f.owner + ")" : f.owner;
+      var expireText = f.expires_at ? " · 过期: " + new Date(f.expires_at).toLocaleString() : " · 永久";
+      div.innerHTML =
+        '<div class="row">' +
+        '<span class="fname" title="' + escapeHtml(f.name) + '">' + escapeHtml(f.name) + "</span>" +
+        '<span class="meta">' + fmtSize(f.size) + "</span>" +
+        '<span class="tag">来自 ' + escapeHtml(ownerLabel) + expireText + "</span>" +
+        '<a class="btn tiny primary" href="/api/download/' + f.id + '" download>下载</a>' +
+        "</div>";
+      box.appendChild(div);
+    });
+  }
+
   // ---------------- 上传 ----------------
   $("pickBtn").onclick = () => $("fileInput").click();
   $("fileInput").onchange = async () => {
@@ -185,6 +211,14 @@
     if (!files.length) return;
     const fd = new FormData();
     files.forEach((f) => fd.append("file", f, f.name));
+    // 上传选项
+    var mode = document.querySelector('input[name="uploadMode"]:checked').value;
+    fd.append("mode", mode);
+    if (mode === "public") {
+      fd.append("expire_minutes", $("expireSelect").value);
+    } else {
+      fd.append("expire_after_download", $("autoDelCheck").checked ? "1" : "0");
+    }
 
     const uid = "up_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6);
     const totalBytes = files.reduce((s, f) => s + f.size, 0);
@@ -338,6 +372,14 @@
   }
 
   // ---------------- 初始化 ----------------
+  // 上传模式切换
+  document.querySelectorAll('input[name="uploadMode"]').forEach(function(r) {
+    r.onchange = function() {
+      $("expireOpts").style.display = (r.value === "public") ? "" : "none";
+      $("autoDelOpts").style.display = (r.value === "private") ? "" : "none";
+    };
+  });
+
   loadState();
   loadLogs();
   setInterval(loadState, 3000); // 轮询状态 / 收件箱

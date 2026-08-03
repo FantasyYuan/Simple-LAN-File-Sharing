@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>局域网文件共享 · Uploader</title>
+  <title>LAN Share v1.1</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -30,6 +30,33 @@
         <input type="file" id="fileInput" multiple hidden>
       </div>
       <div id="progressArea" class="progress-area"></div>
+      <div class="upload-opts">
+        <div class="opts-row">
+          <label>
+            <input type="radio" name="uploadMode" value="private" checked> 私密发送
+          </label>
+          <label>
+            <input type="radio" name="uploadMode" value="public"> 公共寄存
+          </label>
+        </div>
+        <div class="opts-row" id="expireOpts" style="display:none">
+          <label>过期时间：</label>
+          <select id="expireSelect">
+            <option value="30">30 分钟</option>
+            <option value="60">1 小时</option>
+            <option value="360">6 小时</option>
+            <option value="1440">1 天</option>
+            <option value="4320">3 天</option>
+            <option value="10080">7 天</option>
+            <option value="0">永久</option>
+          </select>
+        </div>
+        <div class="opts-row" id="autoDelOpts" style="display:none">
+          <label>
+            <input type="checkbox" id="autoDelCheck"> 对方下载后自动删除
+          </label>
+        </div>
+      </div>
       <div id="uploadHint" class="upload-hint"></div>
     </section>
 
@@ -53,16 +80,23 @@
       <div id="inbox" class="filelist"><p class="empty">暂无接收的文件</p></div>
     </section>
 
-    <!-- ④ 操作日志 -->
+    <!-- ④ 公共文件区 -->
     <section class="card">
-      <h2>④ 操作日志 <span class="sub">(.log)</span></h2>
+      <h2>④ 公共文件区 <span class="sub">（所有人可见）</span></h2>
+      <p class="hint">任何人上传且选择「公共寄存」的文件会出现在这里，所有用户都可以下载。</p>
+      <div id="publicFiles" class="filelist"><p class="empty">暂无公共文件</p></div>
+    </section>
+
+    <!-- ⑤ 操作日志 -->
+    <section class="card">
+      <h2>⑤ 操作日志 <span class="sub">(.log)</span></h2>
       <div id="logBox" class="logbox"></div>
     </section>
   </main>
 
   <footer class="site-footer">
     <a href="https://github.com/FantasyYuan/Simple-LAN-File-Sharing" target="_blank" rel="noopener">GitHub</a>
-    <span>· Simple LAN File Sharing · MIT License</span>
+    <span>· LAN Share v1.1 · MIT License</span>
     <span>© 2026 FantasyYuan</span>
   </footer>
 
