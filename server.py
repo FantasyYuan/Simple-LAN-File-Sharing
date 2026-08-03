@@ -170,10 +170,13 @@ class State:
             self.peers[ip] = {"seen": now, "name": ""}
         elif isinstance(entry, dict):
             entry["seen"] = now
+            if is_new:
+                self._save_peers()
+            return          # 已有 IP 仅更新时间戳, 不写盘 (省 IO)
         else:
             self.peers[ip] = {"seen": now, "name": ""}
-        self._save_peers()
         if is_new:
+            self._save_peers()
             name = self.get_name(ip)
             tag = f" ({name})" if name else ""
             print(f"[CONNECT] {ip}{tag}")

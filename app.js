@@ -101,6 +101,8 @@
 
   function renderMyFiles(files) {
     const box = $("myFiles");
+    // 保存当前勾选, 重建后恢复
+    var checkedIds = Array.from(document.querySelectorAll(".pick:checked")).map(function(c) { return c.value; });
     if (!files.length) {
       box.innerHTML = '<p class="empty">还没有文件，先在 ① 上传</p>';
       return;
@@ -120,6 +122,10 @@
         "</label>";
       box.appendChild(div);
     });
+    // 恢复勾选
+    box.querySelectorAll(".pick").forEach(function(cb) {
+      if (checkedIds.indexOf(cb.value) !== -1) cb.checked = true;
+    });
     box.querySelectorAll(".del").forEach((b) => {
       b.onclick = () => delFile(b.dataset.id);
     });
@@ -136,12 +142,15 @@
       const div = document.createElement("div");
       div.className = "item";
       const fromLabel = f.owner_name ? f.owner_name + " (" + f.owner + ")" : f.owner;
+      var dlBtn = f.downloaded
+        ? '<span class="btn tiny done">已下载</span>'
+        : '<a class="btn tiny primary" href="/api/download/' + f.id + '" download>下载</a>';
       div.innerHTML =
         '<div class="row">' +
         '<span class="fname" title="' + escapeHtml(f.name) + '">' + escapeHtml(f.name) + "</span>" +
         '<span class="meta">' + fmtSize(f.size) + "</span>" +
         '<span class="tag">来自 ' + escapeHtml(fromLabel) + "</span>" +
-        '<a class="btn tiny primary" href="/api/download/' + f.id + '" download>下载</a>' +
+        dlBtn +
         "</div>";
       box.appendChild(div);
     });

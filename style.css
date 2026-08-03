@@ -210,6 +210,16 @@ select {
 .btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
 .btn.primary:hover { background: var(--brand-d); }
 .btn.tiny { padding: 5px 12px; font-size: 13px; }
+.btn.tiny.done {
+  background: #e5e7eb;
+  color: #9ca3af;
+  cursor: default;
+  pointer-events: none;
+  display: inline-block;
+  text-decoration: none;
+  border-radius: 8px;
+  font-weight: 600;
+}
 .btn:active { transform: translateY(1px); }
 
 /* ---------- 日志 ---------- */
@@ -248,6 +258,19 @@ select {
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast.ok { background: #16a34a; }
 .toast.err { background: #dc2626; }
+
+/* ---------- 页脚 ---------- */
+.site-footer {
+  text-align: center;
+  padding: 16px 12px 24px;
+  font-size: 12px;
+  color: var(--muted);
+  max-width: 760px;
+  margin: 0 auto;
+}
+.site-footer a { color: var(--brand); text-decoration: none; }
+.site-footer a:hover { text-decoration: underline; }
+.site-footer span { margin: 0 6px; }
 
 /* ---------- 手机适配 ---------- */
 @media (max-width: 560px) {
