@@ -52,7 +52,9 @@ ONLINE_WINDOW = 10 * 60          # 多少秒内有访问记录算 "在线"
 MAX_UPLOAD = 50 * 1024 * 1024 * 1024   # 单次上传防御性上限 50GB（实际取决于服务器内存）
 STATIC = {
     "/style.css": ("style.css", "text/css; charset=utf-8"),
+    "/utils.js": ("utils.js", "application/javascript; charset=utf-8"),
     "/app.js": ("app.js", "application/javascript; charset=utf-8"),
+    "/upload.js": ("upload.js", "application/javascript; charset=utf-8"),
 }
 
 
