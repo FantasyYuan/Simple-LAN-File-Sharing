@@ -1,387 +1,207 @@
-/* 局域网文件共享 - 前端逻辑 */
-(function () {
-  "use strict";
+/* app.js — 核心逻辑：状态管理、渲染、交互 */
+"use strict";
 
-  const $ = (id) => document.getElementById(id);
-  let MY_IP = "";
-  let SERVER_IP = "";
+var MY_IP = "";
+var SERVER_IP = "";
 
-  // ---------------- 工具 ----------------
-  function toast(msg, ok = true) {
-    const t = $("toast");
-    t.textContent = msg;
-    t.className = "toast show " + (ok ? "ok" : "err");
-    clearTimeout(toast._t);
-    toast._t = setTimeout(() => (t.className = "toast"), 2600);
-  }
+// ---------------- 状态 ----------------
+async function loadState() {
+  try {
+    var s = await api("/api/state");
+    MY_IP = s.ip;
+    SERVER_IP = s.server_ip;
+    $("myIp").textContent = s.ip;
+    $("serverIp").textContent = s.server_ip;
 
-  function fmtSize(n) {
-    if (n < 1024) return n + " B";
-    if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
-    return (n / 1048576).toFixed(1) + " MB";
-  }
-
-  function escapeHtml(s) {
-    return (s || "").replace(/[&<>"]/g, (c) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])
-    );
-  }
-
-  function guessDeviceName() {
-    var ua = navigator.userAgent || "";
-    if (/iPhone|iPad|iPod/.test(ua)) {
-      var m = ua.match(/OS (\d+)/);
-      return m ? "iPhone (iOS " + m[1] + ")" : "iPhone";
-    }
-    if (/Android/.test(ua)) {
-      var m = ua.match(/Android (\d+(\.\d+)?)/);
-      return m ? "Android " + m[1] : "Android 设备";
-    }
-    if (/Windows/.test(ua)) return "Windows PC";
-    if (/Mac OS/.test(ua)) return "Mac";
-    if (/Linux/.test(ua)) return "Linux";
-    return "";
-  }
-
-  async function api(path, opts) {
-    const r = await fetch(path, opts);
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    const ct = r.headers.get("content-type") || "";
-    return ct.includes("application/json") ? r.json() : r;
-  }
-
-  // ---------------- 状态 ----------------
-  async function loadState() {
-    try {
-      const s = await api("/api/state");
-      MY_IP = s.ip;
-      SERVER_IP = s.server_ip;
-      $("myIp").textContent = s.ip;
-      $("serverIp").textContent = s.server_ip;
-
-      // 用户正在编辑昵称时，跳过轮询更新，避免覆盖输入
-      var editing = (document.activeElement === $("nameInput"));
-      if (!editing) {
-        $("nameInput").value = s.my_name || "";
-      }
-
-      // 首次连接：自动检测设备名并保存（仅触发一次，且不在编辑时）
-      if (!editing && !s.my_name && !localStorage.getItem("uploader_name_set")) {
-        var guessed = guessDeviceName();
-        if (guessed) {
-          $("nameInput").value = guessed;
-          localStorage.setItem("uploader_name_set", "1");
-          fetch("/api/set-name", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name: guessed }),
-          }).catch(function(){});
-        }
-      }
-
-      const sel = $("peerSelect");
-      const cur = sel.value;
-      sel.innerHTML = '<option value="">— 选择对方 IP —</option>';
-      (s.peers || []).forEach((p) => {
-        const o = document.createElement("option");
-        o.value = p.ip;
-        const label = (p.name ? p.name + " · " : "") + p.ip + (p.online ? "（在线）" : "（离线）");
-        o.textContent = label;
-        sel.appendChild(o);
-      });
-      if (cur) sel.value = cur;
-
-      renderMyFiles(s.my_files || []);
-      renderInbox(s.inbox || []);
-      renderPublicFiles(s.public_files || []);
-    } catch (e) {
-      // 轮询失败不频繁打扰用户
-      console.warn("loadState failed:", e.message);
-    }
-  }
-
-  function renderMyFiles(files) {
-    const box = $("myFiles");
-    // 保存当前勾选, 重建后恢复
-    var checkedIds = Array.from(document.querySelectorAll(".pick:checked")).map(function(c) { return c.value; });
-    if (!files.length) {
-      box.innerHTML = '<p class="empty">还没有文件，先在 ① 上传</p>';
-      return;
-    }
-    box.innerHTML = "";
-    files.forEach((f) => {
-      const delivered = (f.deliveries || []).map(d => d.name || d.to).join("、");
-      const pubTag = f.mode === "public" ? '<span class="tag pub">公共</span>' : "";
-      const div = document.createElement("div");
-      div.className = "item";
-      div.innerHTML =
-        '<label class="row">' +
-        '<input type="checkbox" class="pick" value="' + f.id + '">' +
-        '<span class="fname" title="' + escapeHtml(f.name) + '">' + escapeHtml(f.name) + "</span>" +
-        '<span class="meta">' + fmtSize(f.size) + "</span>" +
-        pubTag +
-        (delivered ? '<span class="tag">已发→' + escapeHtml(delivered) + "</span>" : "") +
-        '<button class="btn tiny del" data-id="' + f.id + '" type="button">删除</button>' +
-        "</label>";
-      box.appendChild(div);
-    });
-    // 恢复勾选
-    box.querySelectorAll(".pick").forEach(function(cb) {
-      if (checkedIds.indexOf(cb.value) !== -1) cb.checked = true;
-    });
-    box.querySelectorAll(".del").forEach((b) => {
-      b.onclick = () => delFile(b.dataset.id);
-    });
-  }
-
-  function renderInbox(items) {
-    const box = $("inbox");
-    if (!items.length) {
-      box.innerHTML = '<p class="empty">暂无接收的文件</p>';
-      return;
-    }
-    box.innerHTML = "";
-    items.forEach((f) => {
-      const div = document.createElement("div");
-      div.className = "item";
-      const fromLabel = f.owner_name ? f.owner_name + " (" + f.owner + ")" : f.owner;
-      var dlBtn = f.downloaded
-        ? '<a class="btn tiny done" href="/api/download/' + f.id + '" download>已下载</a>'
-        : '<a class="btn tiny primary" href="/api/download/' + f.id + '" download>下载</a>';
-      div.innerHTML =
-        '<div class="row">' +
-        '<span class="fname" title="' + escapeHtml(f.name) + '">' + escapeHtml(f.name) + "</span>" +
-        '<span class="meta">' + fmtSize(f.size) + "</span>" +
-        '<span class="tag">来自 ' + escapeHtml(fromLabel) + "</span>" +
-        dlBtn +
-        "</div>";
-      box.appendChild(div);
-    });
-  }
-
-  function renderPublicFiles(files) {
-    var box = $("publicFiles");
-    if (!files.length) {
-      box.innerHTML = '<p class="empty">暂无公共文件</p>';
-      return;
-    }
-    box.innerHTML = "";
-    files.forEach(function(f) {
-      var div = document.createElement("div");
-      div.className = "item";
-      var ownerLabel = f.owner_name ? f.owner_name + " (" + f.owner + ")" : f.owner;
-      var expireText = f.expires_at ? " · 过期: " + new Date(f.expires_at).toLocaleString() : " · 永久";
-      div.innerHTML =
-        '<div class="row">' +
-        '<span class="fname" title="' + escapeHtml(f.name) + '">' + escapeHtml(f.name) + "</span>" +
-        '<span class="meta">' + fmtSize(f.size) + "</span>" +
-        '<span class="tag">来自 ' + escapeHtml(ownerLabel) + expireText + "</span>" +
-        '<a class="btn tiny primary" href="/api/download/' + f.id + '" download>下载</a>' +
-        "</div>";
-      box.appendChild(div);
-    });
-  }
-
-  // ---------------- 上传 ----------------
-  $("pickBtn").onclick = () => $("fileInput").click();
-  $("fileInput").onchange = async () => {
-    await doUpload($("fileInput").files);
-    $("fileInput").value = "";
-  };
-
-  const dz = $("dropzone");
-  ["dragover", "dragenter"].forEach((ev) =>
-    dz.addEventListener(ev, (e) => {
-      e.preventDefault();
-      dz.classList.add("over");
-    })
-  );
-  ["dragleave", "drop"].forEach((ev) =>
-    dz.addEventListener(ev, (e) => {
-      e.preventDefault();
-      dz.classList.remove("over");
-    })
-  );
-  dz.addEventListener("drop", async (e) => {
-    if (e.dataTransfer && e.dataTransfer.files) await doUpload(e.dataTransfer.files);
-  });
-
-  async function doUpload(fileList) {
-    const files = Array.from(fileList || []);
-    if (!files.length) return;
-    const fd = new FormData();
-    files.forEach((f) => fd.append("file", f, f.name));
-    // 上传选项
-    var mode = document.querySelector('input[name="uploadMode"]:checked').value;
-    fd.append("mode", mode);
-    if (mode === "public") {
-      fd.append("expire_minutes", $("expireSelect").value);
-    } else {
-      fd.append("expire_after_download", $("autoDelCheck").checked ? "1" : "0");
+    var editing = (document.activeElement === $("nameInput"));
+    if (!editing) {
+      $("nameInput").value = s.my_name || "";
     }
 
-    const uid = "up_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6);
-    const totalBytes = files.reduce((s, f) => s + f.size, 0);
-
-    // 创建独立进度条
-    const item = document.createElement("div");
-    item.className = "progress-item";
-    item.id = uid;
-    item.innerHTML =
-      '<div class="progress-head">' +
-        "<span>上传 " + files.length + " 个文件 (" + fmtSize(totalBytes) + ")</span>" +
-        '<span class="pct">0%</span>' +
-      "</div>" +
-      '<div class="progress-track"><div class="progress-fill" style="width:0%"></div></div>' +
-      '<div class="progress-speed"></div>';
-    $("progressArea").appendChild(item);
-
-    return new Promise((resolve) => {
-      const xhr = new XMLHttpRequest();
-      const startTime = Date.now();
-
-      xhr.upload.onprogress = (e) => {
-        if (!e.lengthComputable) return;
-        const it = document.getElementById(uid);
-        if (!it) return;
-        const pct = Math.round(e.loaded / e.total * 100);
-        it.querySelector(".pct").textContent = pct + "%";
-        it.querySelector(".progress-fill").style.width = pct + "%";
-        const elapsed = (Date.now() - startTime) / 1000;
-        if (elapsed > 0.5) {
-          const speed = e.loaded / elapsed;
-          const remain = e.total - e.loaded;
-          const eta = speed > 0 ? remain / speed : 0;
-          it.querySelector(".progress-speed").textContent =
-            fmtSize(speed) + "/s" + (eta > 1 ? " · 剩余 " + Math.ceil(eta) + " 秒" : "");
-        }
-      };
-
-      xhr.onload = async () => {
-        const it = document.getElementById(uid);
-        if (it) it.remove();
-        try {
-          const j = JSON.parse(xhr.responseText);
-          if (j.ok) {
-            toast("上传成功：" + j.files.length + " 个文件");
-            $("uploadHint").textContent = "已上传 " + j.files.length + " 个文件";
-            await loadState();
-            await loadLogs();
-          } else {
-            toast("上传失败：" + (j.error || ""), false);
-          }
-        } catch (e) {
-          toast("上传错误：" + e.message, false);
-        }
-        resolve();
-      };
-
-      xhr.onerror = () => {
-        const it = document.getElementById(uid);
-        if (it) it.remove();
-        toast("上传错误：网络连接失败", false);
-        resolve();
-      };
-
-      xhr.open("POST", "/api/upload");
-      xhr.send(fd);
-    });
-  }
-
-  // ---------------- 发送 ----------------
-  $("sendBtn").onclick = async () => {
-    const ids = Array.from(document.querySelectorAll(".pick:checked")).map((c) => c.value);
-    const to = $("peerSelect").value;
-    if (!ids.length) return toast("请先勾选要发送的文件", false);
-    if (!to) return toast("请选择接收方 IP", false);
-    try {
-      const r = await fetch("/api/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ file_ids: ids, to_ip: to }),
-      });
-      const j = await r.json();
-      if (j.ok) {
-        toast("已发送给 " + to);
-        await loadState();
-        await loadLogs();
-      } else {
-        toast("发送失败：" + (j.error || ""), false);
-      }
-    } catch (e) {
-      toast("发送错误：" + e.message, false);
-    }
-  };
-
-  // ---------------- 删除 ----------------
-  async function delFile(id) {
-    try {
-      const r = await fetch("/api/delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: [id] }),
-      });
-      const j = await r.json();
-      if (j.ok) {
-        toast("已删除");
-        await loadState();
-        await loadLogs();
-      } else {
-        toast("删除失败", false);
-      }
-    } catch (e) {
-      toast("删除失败：" + e.message, false);
-    }
-  }
-
-  // ---------------- 昵称 ----------------
-  async function saveName() {
-    const name = $("nameInput").value.trim();
-    try {
-      const r = await fetch("/api/set-name", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name }),
-      });
-      const j = await r.json();
-      if (j.ok) {
+    if (!editing && !s.my_name && !localStorage.getItem("uploader_name_set")) {
+      var guessed = guessDeviceName();
+      if (guessed) {
+        $("nameInput").value = guessed;
         localStorage.setItem("uploader_name_set", "1");
-        toast(name ? "昵称已更新：" + name : "昵称已清除");
-        await loadLogs();
-      } else {
-        toast("保存失败：" + (j.error || ""), false);
+        fetch("/api/set-name", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: guessed }),
+        }).catch(function(){});
       }
-    } catch (e) {
-      toast("保存错误：" + e.message, false);
     }
-  }
-  $("saveNameBtn").onclick = () => saveName();
-  $("nameInput").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") { e.preventDefault(); saveName(); }
-  });
 
-  // ---------------- 日志 ----------------
-  async function loadLogs() {
-    try {
-      const j = await api("/api/logs?n=40");
-      $("logBox").textContent = (j.lines || []).join("\n") || "（暂无日志）";
-      $("logBox").scrollTop = $("logBox").scrollHeight;
-    } catch (e) {
-      /* 忽略 */
+    var sel = $("peerSelect");
+    var cur = sel.value;
+    sel.innerHTML = '<option value="">— 选择对方 IP —</option>';
+    (s.peers || []).forEach(function(p) {
+      var o = document.createElement("option");
+      o.value = p.ip;
+      o.textContent = (p.name ? p.name + " · " : "") + p.ip + (p.online ? "（在线）" : "（离线）");
+      sel.appendChild(o);
+    });
+    if (cur) sel.value = cur;
+
+    renderMyFiles(s.my_files || []);
+    renderInbox(s.inbox || []);
+    renderPublicFiles(s.public_files || []);
+  } catch (e) {
+    console.warn("loadState failed:", e.message);
+  }
+}
+
+function renderMyFiles(files) {
+  var box = $("myFiles");
+  var checkedIds = Array.from(document.querySelectorAll(".pick:checked")).map(function(c) { return c.value; });
+  if (!files.length) {
+    box.innerHTML = '<p class="empty">还没有文件，先在 ① 上传</p>';
+    return;
+  }
+  box.innerHTML = "";
+  files.forEach(function(f) {
+    var delivered = (f.deliveries || []).map(function(d) { return d.name || d.to; }).join("、");
+    var pubTag = f.mode === "public" ? '<span class="tag pub">公共</span>' : "";
+    var div = document.createElement("div");
+    div.className = "item";
+    div.innerHTML =
+      '<label class="row">' +
+      '<input type="checkbox" class="pick" value="' + f.id + '">' +
+      '<span class="fname" title="' + escapeHtml(f.name) + '">' + escapeHtml(f.name) + "</span>" +
+      '<span class="meta">' + fmtSize(f.size) + "</span>" +
+      pubTag +
+      (delivered ? '<span class="tag">已发→' + escapeHtml(delivered) + "</span>" : "") +
+      '<button class="btn tiny del" data-id="' + f.id + '" type="button">删除</button>' +
+      "</label>";
+    box.appendChild(div);
+  });
+  box.querySelectorAll(".pick").forEach(function(cb) {
+    if (checkedIds.indexOf(cb.value) !== -1) cb.checked = true;
+  });
+  box.querySelectorAll(".del").forEach(function(b) {
+    b.onclick = function() { delFile(b.dataset.id); };
+  });
+}
+
+function renderInbox(items) {
+  var box = $("inbox");
+  if (!items.length) { box.innerHTML = '<p class="empty">暂无接收的文件</p>'; return; }
+  box.innerHTML = "";
+  items.forEach(function(f) {
+    var div = document.createElement("div");
+    div.className = "item";
+    var fromLabel = f.owner_name ? f.owner_name + " (" + f.owner + ")" : f.owner;
+    var dlBtn = f.downloaded
+      ? '<a class="btn tiny done" href="/api/download/' + f.id + '" download>已下载</a>'
+      : '<a class="btn tiny primary" href="/api/download/' + f.id + '" download>下载</a>';
+    div.innerHTML =
+      '<div class="row">' +
+      '<span class="fname" title="' + escapeHtml(f.name) + '">' + escapeHtml(f.name) + "</span>" +
+      '<span class="meta">' + fmtSize(f.size) + "</span>" +
+      '<span class="tag">来自 ' + escapeHtml(fromLabel) + "</span>" +
+      dlBtn + "</div>";
+    box.appendChild(div);
+  });
+}
+
+function renderPublicFiles(files) {
+  var box = $("publicFiles");
+  if (!files.length) { box.innerHTML = '<p class="empty">暂无公共文件</p>'; return; }
+  box.innerHTML = "";
+  files.forEach(function(f) {
+    var div = document.createElement("div");
+    div.className = "item";
+    var ownerLabel = f.owner_name ? f.owner_name + " (" + f.owner + ")" : f.owner;
+    var expireText = f.expires_at ? " · 过期: " + new Date(f.expires_at).toLocaleString() : " · 永久";
+    div.innerHTML =
+      '<div class="row">' +
+      '<span class="fname" title="' + escapeHtml(f.name) + '">' + escapeHtml(f.name) + "</span>" +
+      '<span class="meta">' + fmtSize(f.size) + "</span>" +
+      '<span class="tag">来自 ' + escapeHtml(ownerLabel) + expireText + "</span>" +
+      '<a class="btn tiny primary" href="/api/download/' + f.id + '" download>下载</a>' +
+      "</div>";
+    box.appendChild(div);
+  });
+}
+
+// ---------------- 发送 ----------------
+$("sendBtn").onclick = async function() {
+  var ids = Array.from(document.querySelectorAll(".pick:checked")).map(function(c) { return c.value; });
+  var to = $("peerSelect").value;
+  if (!ids.length) return toast("请先勾选要发送的文件", false);
+  if (!to) return toast("请选择接收方 IP", false);
+  try {
+    var r = await fetch("/api/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file_ids: ids, to_ip: to }),
+    });
+    var j = await r.json();
+    if (j.ok) {
+      toast("已发送给 " + to);
+      await loadState();
+      await loadLogs();
+    } else {
+      toast("发送失败：" + (j.error || ""), false);
     }
+  } catch (e) {
+    toast("发送错误：" + e.message, false);
   }
+};
 
-  // ---------------- 初始化 ----------------
-  // 上传模式切换
-  document.querySelectorAll('input[name="uploadMode"]').forEach(function(r) {
-    r.onchange = function() {
-      $("expireOpts").style.display = (r.value === "public") ? "" : "none";
-      $("autoDelOpts").style.display = (r.value === "private") ? "" : "none";
-    };
-  });
+// ---------------- 删除 ----------------
+async function delFile(id) {
+  try {
+    var r = await fetch("/api/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: [id] }),
+    });
+    var j = await r.json();
+    if (j.ok) { toast("已删除"); await loadState(); await loadLogs(); }
+    else { toast("删除失败", false); }
+  } catch (e) { toast("删除失败：" + e.message, false); }
+}
 
-  loadState();
-  loadLogs();
-  setInterval(loadState, 3000); // 轮询状态 / 收件箱
-  setInterval(loadLogs, 5000); // 轮询日志
-})();
+// ---------------- 昵称 ----------------
+async function saveName() {
+  var name = $("nameInput").value.trim();
+  try {
+    var r = await fetch("/api/set-name", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name }),
+    });
+    var j = await r.json();
+    if (j.ok) {
+      localStorage.setItem("uploader_name_set", "1");
+      toast(name ? "昵称已更新：" + name : "昵称已清除");
+      await loadLogs();
+    } else { toast("保存失败：" + (j.error || ""), false); }
+  } catch (e) { toast("保存错误：" + e.message, false); }
+}
+$("saveNameBtn").onclick = function() { saveName(); };
+$("nameInput").addEventListener("keydown", function(e) {
+  if (e.key === "Enter") { e.preventDefault(); saveName(); }
+});
+
+// ---------------- 日志 ----------------
+async function loadLogs() {
+  try {
+    var j = await api("/api/logs?n=40");
+    $("logBox").textContent = (j.lines || []).join("\n") || "（暂无日志）";
+    $("logBox").scrollTop = $("logBox").scrollHeight;
+  } catch (e) { /* ignore */ }
+}
+
+// ---------------- 初始化 ----------------
+document.querySelectorAll('input[name="uploadMode"]').forEach(function(r) {
+  r.onchange = function() {
+    $("expireOpts").style.display = (r.value === "public") ? "" : "none";
+    $("autoDelOpts").style.display = (r.value === "private") ? "" : "none";
+  };
+});
+
+loadState();
+loadLogs();
+setInterval(loadState, 3000);
+setInterval(loadLogs, 5000);
